@@ -15,6 +15,16 @@ jobs:
         with:
           submodules: true
 
+      # 1. الحل الجذري: إنشاء ذاكرة وهمية 10GB لمنع انهيار OOM Killer
+      - name: Create 10GB Swap Space
+        run: |
+          sudo swapoff -a
+          sudo fallocate -l 10G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -26,14 +36,9 @@ jobs:
         with:
           packages: "build-tools;35.0.0 ndk;27.0.12077973 platforms;android-35"
 
-      - name: Limit RAM & Setup Configs
+      - name: Prepare Configs & Restrict Architecture
         run: |
-          # 1. تحديد الـ RAM وتخفيض المسارات المتوازية لمنع انهيار السيرفر
-          mkdir -p ~/.gradle
-          echo "org.gradle.jvmargs=-Xmx4g -XX:+UseParallelGC" > ~/.gradle/gradle.properties
-          echo "org.gradle.workers.max=2" >> ~/.gradle/gradle.properties
-
-          # 2. ملف local.properties
+          # تقييد التجميع بمعمارية واحدة (arm64-v8a) لتقليل وقت التجميع للنصف
           cat << 'EOF' > local.properties
           apiId=6
           apiHash=eb066357ef23a52e23bf69c35832b100
@@ -41,11 +46,10 @@ jobs:
           helperBotUsername=dummy
           sentryDsn=
           mapsApiKey=dummy
-          APP_ABI=arm64-v8a
           abiList=arm64-v8a
           EOF
 
-          # 3. ملف google-services.json وهمي
+          # إنشاء google-services.json وهمي لتفادي أخطاء القراءة
           mkdir -p TMessagesProj_App
           cat << 'EOF' > TMessagesProj_App/google-services.json
           {
@@ -77,7 +81,7 @@ jobs:
 
           touch sentry.properties
 
-          # 4. حقن صلاحية الإنترنت
+          # حقن صلاحية الإنترنت في AndroidManifest
           MANIFEST_FILE=$(find TMessagesProj_App -name "AndroidManifest.xml" 2>/dev/null | head -n 1)
           if [ -n "$MANIFEST_FILE" ]; then
             if ! grep -q "android.permission.INTERNET" "$MANIFEST_FILE"; then
@@ -85,20 +89,11 @@ jobs:
             fi
           fi
 
-      - name: Setup Gradle Cache
-        uses: gradle/actions/setup-gradle@v3
-
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: |
-          ./gradlew assembleDebug \
-            -PAPP_ABI=arm64-v8a \
-            -PabiList=arm64-v8a \
-            -PonlyArm64=true \
-            --no-daemon \
-            --stacktrace
+        run: ./gradlew assembleDebug -PabiList=arm64-v8a --stacktrace
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
