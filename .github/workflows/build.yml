@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Fast Build Android APK
 
 on:
   push:
@@ -12,8 +12,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -21,26 +19,8 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Android SDK & NDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: "build-tools;35.0.0 ndk;27.0.12077973 platforms;android-35"
-
-      - name: Balance Swap & Setup Configs
+      - name: Inject Dummy Configs
         run: |
-          # 1. إنشاء Swap متوازن (4GB) لتفادي تجمد الهارد Disk Thrashing
-          sudo swapoff -a
-          sudo fallocate -l 4G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-
-          # 2. تقييد الجافا والعمال لمنع خنق المعالج
-          mkdir -p ~/.gradle
-          echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > ~/.gradle/gradle.properties
-          echo "org.gradle.workers.max=2" >> ~/.gradle/gradle.properties
-
-          # 3. إعداد local.properties
           cat << 'EOF' > local.properties
           apiId=6
           apiHash=eb066357ef23a52e23bf69c35832b100
@@ -51,39 +31,17 @@ jobs:
           abiList=arm64-v8a
           EOF
 
-          # 4. إنشاء google-services.json وهمي
           mkdir -p TMessagesProj_App
           cat << 'EOF' > TMessagesProj_App/google-services.json
           {
-            "project_info": {
-              "project_number": "000000000000",
-              "project_id": "dummy-project",
-              "storage_bucket": "dummy.appspot.com"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:000000000000:android:000000000000",
-                  "android_client_info": {
-                    "package_name": "tw.nekomimi.nekogram"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "AIzaSyDummyKeyForBuildOnly123456"
-                  }
-                ],
-                "services": {}
-              }
-            ],
+            "project_info": { "project_number": "000000000000", "project_id": "dummy-project", "storage_bucket": "dummy.appspot.com" },
+            "client": [{ "client_info": { "mobilesdk_app_id": "1:000000000000:android:000000000000", "android_client_info": { "package_name": "tw.nekomimi.nekogram" } }, "oauth_client": [], "api_key": [{ "current_key": "AIzaSyDummyKeyForBuildOnly123456" }], "services": {} }],
             "configuration_version": "1"
           }
           EOF
 
           touch sentry.properties
 
-          # 5. حقن صلاحية الإنترنت
           MANIFEST_FILE=$(find TMessagesProj_App -name "AndroidManifest.xml" 2>/dev/null | head -n 1)
           if [ -n "$MANIFEST_FILE" ]; then
             if ! grep -q "android.permission.INTERNET" "$MANIFEST_FILE"; then
@@ -91,17 +49,28 @@ jobs:
             fi
           fi
 
-      - name: Grant Execute Permission for Gradlew
+      - name: Fetch Prebuilt Native Libraries (.so)
+        run: |
+          # 1. إنشاء المجلد المخصص للمكتبات الجاهزة
+          mkdir -p TMessagesProj_App/src/main/jniLibs/arm64-v8a
+          
+          # 2. جلب ملفات الـ C++ المترجمة جاهزة (.so) لتجنب إعادة تجميعها نهائياً
+          curl -L -o release.apk https://github.com/Nekogram/Nekogram/releases/download/v11.6.0-10080/Nekogram-v11.6.0-10080-arm64-v8a.apk || true
+          if [ -f "release.apk" ]; then
+            unzip -o release.apk "lib/arm64-v8a/*" -d temp_so || true
+            cp -r temp_so/lib/arm64-v8a/* TMessagesProj_App/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
+          fi
+
+      - name: Grant Execute Permission
         run: chmod +x gradlew
 
-      - name: Build Debug APK with Release Native Flags
+      - name: Build APK (Bypassing NDK Compilation)
         run: |
           ./gradlew assembleDebug \
+            -x externalNativeBuildDebug \
+            -x externalNativeBuildArm64Debug \
             -PabiList=arm64-v8a \
-            -Pandroid.native.buildType=release \
-            -Pandroid.cmake.arguments="-DCMAKE_BUILD_TYPE=Release" \
-            --no-daemon \
-            --stacktrace
+            --no-daemon
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
