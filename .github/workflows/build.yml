@@ -26,9 +26,14 @@ jobs:
         with:
           packages: "build-tools;35.0.0 ndk;27.0.12077973 platforms;android-35"
 
-      - name: Create Dummy Configs & Inject Permissions
+      - name: Configure Gradle Memory & Dummy Files
         run: |
-          # 1. إنشاء local.properties بالقيم المطلوبة
+          # 1. تخصيص الذاكرة العشوائية لـ Gradle لتفادي خروج خطأ الـ RAM
+          mkdir -p ~/.gradle
+          echo "org.gradle.jvmargs=-Xmx6g -XX:+UseParallelGC" >> ~/.gradle/gradle.properties
+          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
+
+          # 2. إعداد المفاتيح وتقييد التجميع بمعمارية arm64-v8a فقط
           cat << 'EOF' > local.properties
           apiId=6
           apiHash=eb066357ef23a52e23bf69c35832b100
@@ -36,9 +41,10 @@ jobs:
           helperBotUsername=dummy
           sentryDsn=
           mapsApiKey=dummy
+          abiList=arm64-v8a
           EOF
 
-          # 2. إنشاء google-services.json وهمي لمنع خروج خطأ Null Pointer
+          # 3. إنشاء google-services.json وهمي
           mkdir -p TMessagesProj_App
           cat << 'EOF' > TMessagesProj_App/google-services.json
           {
@@ -70,7 +76,7 @@ jobs:
 
           touch sentry.properties
 
-          # 3. حقن صلاحية الإنترنت في الـ Manifest
+          # 4. حقن صلاحية الإنترنت في الـ Manifest
           MANIFEST_FILE=$(find TMessagesProj_App -name "AndroidManifest.xml" 2>/dev/null | head -n 1)
           if [ -n "$MANIFEST_FILE" ]; then
             if ! grep -q "android.permission.INTERNET" "$MANIFEST_FILE"; then
@@ -84,41 +90,11 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Build Fast Debug APK (arm64-v8a)
+        run: ./gradlew assembleArm64Debug -PabiList=arm64-v8a --no-daemon || ./gradlew assembleDebug -PabiList=arm64-v8a --no-daemon
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Neko-App-Debug
-          path: TMessagesProj_App/build/outputs/apk/debug/*.apk
-
-      - name: Upload armeabi-v7a build apk
-        uses: actions/upload-artifact@v7
-        with:
-          path: TMessagesProj_App/build/outputs/apk/release/*-armeabi-v7a.apk
-          archive: false
-
-      - name: Upload universal build apk
-        uses: actions/upload-artifact@v7
-        with:
-          path: TMessagesProj_App/build/outputs/apk/release/*-universal.apk
-          archive: false
-
-      - name: Upload x86 build apk
-        uses: actions/upload-artifact@v7
-        with:
-          path: TMessagesProj_App/build/outputs/apk/release/*-x86.apk
-          archive: false
-
-      - name: Upload x86_64 build apk
-        uses: actions/upload-artifact@v7
-        with:
-          path: TMessagesProj_App/build/outputs/apk/release/*-x86_64.apk
-          archive: false
-
-      - name: Upload build bundle
-        uses: actions/upload-artifact@v7
-        with:
-          path: TMessagesProj_App/build/outputs/bundle/play/*-play.aab
-          archive: false
+          path: TMessagesProj_App/build/outputs/apk/**/*.apk
