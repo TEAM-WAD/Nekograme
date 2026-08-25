@@ -26,14 +26,9 @@ jobs:
         with:
           packages: "build-tools;35.0.0 ndk;27.0.12077973 platforms;android-35"
 
-      - name: Configure Gradle Memory & Dummy Files
+      - name: Create Dummy Configs & Inject Permissions
         run: |
-          # 1. تخصيص الذاكرة العشوائية لـ Gradle لتفادي خروج خطأ الـ RAM
-          mkdir -p ~/.gradle
-          echo "org.gradle.jvmargs=-Xmx6g -XX:+UseParallelGC" >> ~/.gradle/gradle.properties
-          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
-
-          # 2. إعداد المفاتيح وتقييد التجميع بمعمارية arm64-v8a فقط
+          # 1. تقييد معمارية المعالج لسرعة البناء وإضافة البيانات الأساسية
           cat << 'EOF' > local.properties
           apiId=6
           apiHash=eb066357ef23a52e23bf69c35832b100
@@ -44,7 +39,7 @@ jobs:
           abiList=arm64-v8a
           EOF
 
-          # 3. إنشاء google-services.json وهمي
+          # 2. إنشاء google-services.json وهمي
           mkdir -p TMessagesProj_App
           cat << 'EOF' > TMessagesProj_App/google-services.json
           {
@@ -76,7 +71,7 @@ jobs:
 
           touch sentry.properties
 
-          # 4. حقن صلاحية الإنترنت في الـ Manifest
+          # 3. حقن صلاحية الإنترنت في AndroidManifest
           MANIFEST_FILE=$(find TMessagesProj_App -name "AndroidManifest.xml" 2>/dev/null | head -n 1)
           if [ -n "$MANIFEST_FILE" ]; then
             if ! grep -q "android.permission.INTERNET" "$MANIFEST_FILE"; then
@@ -90,8 +85,8 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Build Fast Debug APK (arm64-v8a)
-        run: ./gradlew assembleArm64Debug -PabiList=arm64-v8a --no-daemon || ./gradlew assembleDebug -PabiList=arm64-v8a --no-daemon
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
