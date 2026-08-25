@@ -78,6 +78,11 @@ public class NekoConfig {
 
     public static float stickerSize = 14.0f;
 
+    // الميزات المضافة والمُفعلة افتراضياً
+    public static boolean allowScreenshots = true;
+    public static boolean hideReadHistory = true;
+    public static boolean hideTyping = true;
+
     public static boolean accentAsNotificationColor = false;
     public static boolean askBeforeCall = true;
     public static boolean autoInlineBot = false;
@@ -103,7 +108,7 @@ public class NekoConfig {
     public static boolean hideStories = false;
     public static boolean hideTimeOnSticker = false;
     public static boolean ignoreBlocked = false;
-    public static boolean ignoreContentRestriction = false;
+    public static boolean ignoreContentRestriction = true;
     public static boolean keepFormatting = true;
     public static boolean mapDriftingFix = false;
     public static boolean markdownParseLinks = true;
@@ -182,6 +187,11 @@ public class NekoConfig {
             transcribeProvider = preferences.getInt("transcribeProvider", TRANSCRIBE_PREMIUM);
             transType = preferences.getInt("transType", TRANS_TYPE_NEKO);
             stickerSize = preferences.getFloat("stickerSize", 14.0f);
+
+            allowScreenshots = preferences.getBoolean("allowScreenshots", true);
+            hideReadHistory = preferences.getBoolean("hideReadHistory", true);
+            hideTyping = preferences.getBoolean("hideTyping", true);
+
             accentAsNotificationColor = preferences.getBoolean("accentAsNotificationColor", false);
             askBeforeCall = preferences.getBoolean("askBeforeCall", true);
             autoInlineBot = preferences.getBoolean("autoInlineBot", false);
@@ -207,7 +217,7 @@ public class NekoConfig {
             hideStories = preferences.getBoolean("hideStories", false);
             hideTimeOnSticker = preferences.getBoolean("hideTimeOnSticker", false);
             ignoreBlocked = preferences.getBoolean("ignoreBlocked2", false);
-            ignoreContentRestriction = preferences.getBoolean("ignoreContentRestriction", false);
+            ignoreContentRestriction = preferences.getBoolean("ignoreContentRestriction", true);
             keepFormatting = preferences.getBoolean("keepFormatting", true);
             mapDriftingFix = preferences.getBoolean("mapDriftingFix", userMcc == 460);
             markdownParseLinks = preferences.getBoolean("markdownParseLinks", true);
@@ -301,6 +311,15 @@ public class NekoConfig {
         if (preferences.contains("stickerSize")) {
             object.addProperty("stickerSize", preferences.getFloat("stickerSize", 14.0f));
         }
+        if (preferences.contains("allowScreenshots")) {
+            object.addProperty("allowScreenshots", preferences.getBoolean("allowScreenshots", true));
+        }
+        if (preferences.contains("hideReadHistory")) {
+            object.addProperty("hideReadHistory", preferences.getBoolean("hideReadHistory", true));
+        }
+        if (preferences.contains("hideTyping")) {
+            object.addProperty("hideTyping", preferences.getBoolean("hideTyping", true));
+        }
         if (preferences.contains("accentAsNotificationColor")) {
             object.addProperty("accentAsNotificationColor", preferences.getBoolean("accentAsNotificationColor", false));
         }
@@ -377,7 +396,7 @@ public class NekoConfig {
             object.addProperty("ignoreBlocked2", preferences.getBoolean("ignoreBlocked2", false));
         }
         if (preferences.contains("ignoreContentRestriction")) {
-            object.addProperty("ignoreContentRestriction", preferences.getBoolean("ignoreContentRestriction", false));
+            object.addProperty("ignoreContentRestriction", preferences.getBoolean("ignoreContentRestriction", true));
         }
         if (preferences.contains("keepFormatting")) {
             object.addProperty("keepFormatting", preferences.getBoolean("keepFormatting", true));
@@ -551,6 +570,15 @@ public class NekoConfig {
         }
         if (object.has("stickerSize")) {
             editor.putFloat("stickerSize", object.get("stickerSize").getAsFloat());
+        }
+        if (object.has("allowScreenshots")) {
+            editor.putBoolean("allowScreenshots", object.get("allowScreenshots").getAsBoolean());
+        }
+        if (object.has("hideReadHistory")) {
+            editor.putBoolean("hideReadHistory", object.get("hideReadHistory").getAsBoolean());
+        }
+        if (object.has("hideTyping")) {
+            editor.putBoolean("hideTyping", object.get("hideTyping").getAsBoolean());
         }
         if (object.has("accentAsNotificationColor")) {
             editor.putBoolean("accentAsNotificationColor", object.get("accentAsNotificationColor").getAsBoolean());
@@ -818,6 +846,21 @@ public class NekoConfig {
     public static void setStickerSize(float value) {
         stickerSize = value;
         preferences.edit().putFloat("stickerSize", value).apply();
+    }
+
+    public static void toggleAllowScreenshots() {
+        allowScreenshots = !allowScreenshots;
+        preferences.edit().putBoolean("allowScreenshots", allowScreenshots).apply();
+    }
+
+    public static void toggleHideReadHistory() {
+        hideReadHistory = !hideReadHistory;
+        preferences.edit().putBoolean("hideReadHistory", hideReadHistory).apply();
+    }
+
+    public static void toggleHideTyping() {
+        hideTyping = !hideTyping;
+        preferences.edit().putBoolean("hideTyping", hideTyping).apply();
     }
 
     public static void toggleAccentAsNotificationColor() {
