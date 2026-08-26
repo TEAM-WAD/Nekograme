@@ -5,6 +5,9 @@ on:
     branches: [ "main", "master", "dev", "ci" ]
   workflow_dispatch:
 
+env:
+  GRADLE_OPTS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dorg.gradle.daemon=false"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,9 +22,14 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Inject Dummy Configs & Prebuilt Libraries
+      - name: Inject Memory Fix & Dummy Configs
         run: |
-          # 1. إعداد local.properties
+          # 1. تخصيص 4GB ذاكرة عشوائية لمترجم Java لجميع مشاريع Gradle
+          mkdir -p ~/.gradle
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" > ~/.gradle/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> gradle.properties
+
+          # 2. إعداد local.properties
           cat << 'EOF' > local.properties
           apiId=6
           apiHash=eb066357ef23a52e23bf69c35832b100
@@ -32,7 +40,7 @@ jobs:
           abiList=arm64-v8a
           EOF
 
-          # 2. إنشاء google-services.json وهمي
+          # 3. إنشاء google-services.json وهمي
           mkdir -p TMessagesProj_App
           cat << 'EOF' > TMessagesProj_App/google-services.json
           {
@@ -44,7 +52,7 @@ jobs:
 
           touch sentry.properties
 
-          # 3. إعطاء صلاحية الإنترنت في الـ Manifest
+          # 4. إضافة صلاحية الإنترنت
           MANIFEST_FILE=$(find TMessagesProj_App -name "AndroidManifest.xml" 2>/dev/null | head -n 1)
           if [ -n "$MANIFEST_FILE" ]; then
             if ! grep -q "android.permission.INTERNET" "$MANIFEST_FILE"; then
@@ -52,7 +60,7 @@ jobs:
             fi
           fi
 
-          # 4. جلب مكتبات الـ .so الجاهزة مباشرة
+          # 5. جلب مكتبات .so الجاهزة لتجاوز تجميع C++
           mkdir -p TMessagesProj_App/src/main/jniLibs/arm64-v8a
           curl -L -o release.apk https://github.com/Nekogram/Nekogram/releases/download/v11.6.0-10080/Nekogram-v11.6.0-10080-arm64-v8a.apk || true
           if [ -f "release.apk" ]; then
@@ -60,7 +68,7 @@ jobs:
             cp -r temp_so/lib/arm64-v8a/* TMessagesProj_App/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
           fi
 
-          # 5. تفريغ تعليمات C++ لإنهاء خطوة CMake في 0 ثانية
+          # 6. تفريغ CMakeLists.txt لتجاوز تجميع NDK
           find . -name "CMakeLists.txt" -exec sh -c 'echo "cmake_minimum_required(VERSION 3.10.2)" > "$1"; echo "project(dummy)" >> "$1"' _ {} \;
 
       - name: Grant Execute Permission
@@ -70,6 +78,7 @@ jobs:
         run: |
           ./gradlew assembleDebug \
             -PabiList=arm64-v8a \
+            -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m" \
             --no-daemon
 
       - name: Upload Debug APK Artifact
