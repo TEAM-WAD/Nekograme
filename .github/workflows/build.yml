@@ -1,12 +1,9 @@
-name: Fast Build Android APK
+name: Final Ultra Fast Build
 
 on:
   push:
     branches: [ "main", "master", "dev", "ci" ]
   workflow_dispatch:
-
-env:
-  GRADLE_OPTS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dorg.gradle.daemon=false"
 
 jobs:
   build:
@@ -22,14 +19,27 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Inject Memory Fix & Dummy Configs
+      - name: Force Swap & Overwrite Gradle Memory Settings
         run: |
-          # 1. تخصيص 4GB ذاكرة عشوائية لمترجم Java لجميع مشاريع Gradle
-          mkdir -p ~/.gradle
-          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" > ~/.gradle/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> gradle.properties
+          # 1. تفعيل Swap سريعة بقدرة 8GB
+          sudo swapoff -a || true
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
 
-          # 2. إعداد local.properties
+          # 2. إجبار المشروع كاملاً على استخدام 6GB RAM
+          cat << 'EOF' > gradle.properties
+          org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+UseParallelGC
+          org.gradle.daemon=false
+          org.gradle.parallel=true
+          android.useAndroidX=true
+          EOF
+
+          mkdir -p ~/.gradle
+          cp gradle.properties ~/.gradle/gradle.properties
+
+          # 3. إعداد local.properties
           cat << 'EOF' > local.properties
           apiId=6
           apiHash=eb066357ef23a52e23bf69c35832b100
@@ -40,27 +50,37 @@ jobs:
           abiList=arm64-v8a
           EOF
 
-          # 3. إنشاء google-services.json وهمي
+          # 4. إنشاء google-services.json يشمل beta و release
           mkdir -p TMessagesProj_App
           cat << 'EOF' > TMessagesProj_App/google-services.json
           {
             "project_info": { "project_number": "000000000000", "project_id": "dummy-project", "storage_bucket": "dummy.appspot.com" },
-            "client": [{ "client_info": { "mobilesdk_app_id": "1:000000000000:android:000000000000", "android_client_info": { "package_name": "tw.nekomimi.nekogram" } }, "oauth_client": [], "api_key": [{ "current_key": "AIzaSyDummyKeyForBuildOnly123456" }], "services": {} }],
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:000000000000",
+                  "android_client_info": { "package_name": "tw.nekomimi.nekogram.beta" }
+                },
+                "oauth_client": [],
+                "api_key": [{ "current_key": "AIzaSyDummyKeyForBuildOnly123456" }],
+                "services": {}
+              },
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:000000000000",
+                  "android_client_info": { "package_name": "tw.nekomimi.nekogram" }
+                },
+                "oauth_client": [],
+                "api_key": [{ "current_key": "AIzaSyDummyKeyForBuildOnly123456" }],
+                "services": {}
+              }
+            ],
             "configuration_version": "1"
           }
           EOF
-
           touch sentry.properties
 
-          # 4. إضافة صلاحية الإنترنت
-          MANIFEST_FILE=$(find TMessagesProj_App -name "AndroidManifest.xml" 2>/dev/null | head -n 1)
-          if [ -n "$MANIFEST_FILE" ]; then
-            if ! grep -q "android.permission.INTERNET" "$MANIFEST_FILE"; then
-              sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" \/>' "$MANIFEST_FILE"
-            fi
-          fi
-
-          # 5. جلب مكتبات .so الجاهزة لتجاوز تجميع C++
+          # 5. جلب المكتبات الجاهزة وتجاوز C++
           mkdir -p TMessagesProj_App/src/main/jniLibs/arm64-v8a
           curl -L -o release.apk https://github.com/Nekogram/Nekogram/releases/download/v11.6.0-10080/Nekogram-v11.6.0-10080-arm64-v8a.apk || true
           if [ -f "release.apk" ]; then
@@ -68,18 +88,13 @@ jobs:
             cp -r temp_so/lib/arm64-v8a/* TMessagesProj_App/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
           fi
 
-          # 6. تفريغ CMakeLists.txt لتجاوز تجميع NDK
           find . -name "CMakeLists.txt" -exec sh -c 'echo "cmake_minimum_required(VERSION 3.10.2)" > "$1"; echo "project(dummy)" >> "$1"' _ {} \;
 
       - name: Grant Execute Permission
         run: chmod +x gradlew
 
-      - name: Build APK (Ultra Fast)
-        run: |
-          ./gradlew assembleDebug \
-            -PabiList=arm64-v8a \
-            -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m" \
-            --no-daemon
+      - name: Build APK
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
