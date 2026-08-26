@@ -22,6 +22,10 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Install Matching NDK Version
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;27.3.13750724"
+
       - name: System & Environment Setup
         run: |
           # 1. تفعيل Swap بقدرة 8GB
@@ -34,10 +38,10 @@ jobs:
           mkdir -p ~/.gradle
           echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m" > ~/.gradle/gradle.properties
 
-          # 3. إعداد local.properties واستخدام الـ NDK المثبت في السيرفر
+          # 3. إعداد local.properties وتحديد الـ NDK المطلوبة للمشروع
           cat << EOF > local.properties
           sdk.dir=/usr/local/lib/android/sdk
-          ndk.dir=$ANDROID_NDK_LATEST_HOME
+          ndk.dir=/usr/local/lib/android/sdk/ndk/27.3.13750724
           apiId=6
           apiHash=eb066357ef23a52e23bf69c35832b100
           helperBotId=0
@@ -67,9 +71,9 @@ jobs:
       - name: Build Official Arm64 Debug APK
         run: ./gradlew assembleDebug -PabiList=arm64-v8a --no-daemon
 
-      - name: Upload Debug APK Artifact
+      - name: Upload Single Arm64 APK Only
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Neko-Arm64-Debug
-          path: TMessagesProj_App/build/outputs/apk/**/*.apk
+          name: Nekogram-Arm64-Single
+          path: TMessagesProj_App/build/outputs/apk/**/*arm64-v8a*.apk
