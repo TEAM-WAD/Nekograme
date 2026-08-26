@@ -1,4 +1,4 @@
-name: Official Clean Arm64 Build
+name: Official Working Arm64 Build
 
 on:
   push:
@@ -38,31 +38,32 @@ jobs:
           mkdir -p ~/.gradle
           echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m" > ~/.gradle/gradle.properties
 
-          # 3. إعداد local.properties واستكمال قيم التطبيق
+          # 3. إعداد local.properties بالمعلومات الحقيقية
           cat << EOF > local.properties
           sdk.dir=/usr/local/lib/android/sdk
           ndk.dir=/usr/local/lib/android/sdk/ndk/27.3.13750724
-          apiId=6
-          apiHash=eb066357ef23a52e23bf69c35832b100
+          apiId=30357243
+          apiHash=9782c26101c502f026721b8e7993786c
           helperBotId=0
           helperBotUsername=dummy
-          appCenterHash=00000000-0000-0000-0000-000000000000
-          appCenterHashBeta=00000000-0000-0000-0000-000000000000
+          appCenterHash=
+          appCenterHashBeta=
           sentryDsn=
-          mapsApiKey=dummy
+          mapsApiKey=
           abiList=arm64-v8a
           EOF
 
-          # 4. ملف Google شاملاً لجميع أنواع الحزم (Debug و Beta و Release)
+          # 4. إنشاء مفتاح توقيع موحد للنسخة
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
+
+          # 5. ملف Google وهمي مستقر
           mkdir -p TMessagesProj_App
           cat << 'EOF' > TMessagesProj_App/google-services.json
           {
             "project_info": { "project_number": "000000000000", "project_id": "dummy", "storage_bucket": "dummy.appspot.com" },
             "client": [
-              { "client_info": { "mobilesdk_app_id": "1:0:a:0", "android_client_info": { "package_name": "tw.nekomimi.nekogram" } }, "api_key": [{ "current_key": "AIzaSyDummy" }] },
-              { "client_info": { "mobilesdk_app_id": "1:0:a:0", "android_client_info": { "package_name": "tw.nekomimi.nekogram.debug" } }, "api_key": [{ "current_key": "AIzaSyDummy" }] },
-              { "client_info": { "mobilesdk_app_id": "1:0:a:0", "android_client_info": { "package_name": "tw.nekomimi.nekogram.beta" } }, "api_key": [{ "current_key": "AIzaSyDummy" }] },
-              { "client_info": { "mobilesdk_app_id": "1:0:a:0", "android_client_info": { "package_name": "tw.nekomimi.nekogram.beta.debug" } }, "api_key": [{ "current_key": "AIzaSyDummy" }] }
+              { "client_info": { "mobilesdk_app_id": "1:0:a:0", "android_client_info": { "package_name": "tw.nekomimi.nekogram" } }, "api_key": [{ "current_key": "AIzaSyDummy" }] }
             ],
             "configuration_version": "1"
           }
@@ -72,12 +73,20 @@ jobs:
       - name: Grant Execute Permission
         run: chmod +x gradlew
 
-      - name: Build Official Arm64 Debug APK
-        run: ./gradlew assembleDebug -PabiList=arm64-v8a --no-daemon
+      - name: Build Official Release APK
+        run: ./gradlew assembleRelease -PabiList=arm64-v8a --no-daemon || ./gradlew assembleAfatRelease -PabiList=arm64-v8a --no-daemon
 
-      - name: Upload Single Arm64 APK Only
+      - name: Sign Release APK
+        run: |
+          BUILD_TOOLS_VER=$(ls $ANDROID_HOME/build-tools | tail -n 1)
+          APK_PATH=$(find TMessagesProj_App/build/outputs/apk/ -name "*.apk" | head -n 1)
+          if [ -f "$APK_PATH" ]; then
+            $ANDROID_HOME/build-tools/$BUILD_TOOLS_VER/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android "$APK_PATH" || true
+          fi
+
+      - name: Upload Working Release APK
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Nekogram-Arm64-Single
-          path: TMessagesProj_App/build/outputs/apk/**/*arm64-v8a*.apk
+          name: Nekogram-Working-Arm64
+          path: TMessagesProj_App/build/outputs/apk/**/*.apk
