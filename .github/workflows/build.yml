@@ -74,7 +74,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Official Release APK
-        run: ./gradlew assembleRelease -PabiList=arm64-v8a --no-daemon || ./gradlew assembleAfatRelease -PabiList=arm64-v8a --no-daemon
+        run: ./gradlew :TMessagesProj_App:assembleRelease -PabiList=arm64-v8a --no-daemon
 
       - name: Sign Release APK
         run: |
