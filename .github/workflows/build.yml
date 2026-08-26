@@ -38,7 +38,7 @@ jobs:
           mkdir -p ~/.gradle
           echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m" > ~/.gradle/gradle.properties
 
-          # 3. إعداد local.properties وتحديد الـ NDK المطلوبة للمشروع
+          # 3. إعداد local.properties واستكمال قيم التطبيق
           cat << EOF > local.properties
           sdk.dir=/usr/local/lib/android/sdk
           ndk.dir=/usr/local/lib/android/sdk/ndk/27.3.13750724
@@ -46,19 +46,23 @@ jobs:
           apiHash=eb066357ef23a52e23bf69c35832b100
           helperBotId=0
           helperBotUsername=dummy
+          appCenterHash=00000000-0000-0000-0000-000000000000
+          appCenterHashBeta=00000000-0000-0000-0000-000000000000
           sentryDsn=
           mapsApiKey=dummy
           abiList=arm64-v8a
           EOF
 
-          # 4. ملف Google وهمي يدعم جميع الحزم
+          # 4. ملف Google شاملاً لجميع أنواع الحزم (Debug و Beta و Release)
           mkdir -p TMessagesProj_App
           cat << 'EOF' > TMessagesProj_App/google-services.json
           {
             "project_info": { "project_number": "000000000000", "project_id": "dummy", "storage_bucket": "dummy.appspot.com" },
             "client": [
+              { "client_info": { "mobilesdk_app_id": "1:0:a:0", "android_client_info": { "package_name": "tw.nekomimi.nekogram" } }, "api_key": [{ "current_key": "AIzaSyDummy" }] },
+              { "client_info": { "mobilesdk_app_id": "1:0:a:0", "android_client_info": { "package_name": "tw.nekomimi.nekogram.debug" } }, "api_key": [{ "current_key": "AIzaSyDummy" }] },
               { "client_info": { "mobilesdk_app_id": "1:0:a:0", "android_client_info": { "package_name": "tw.nekomimi.nekogram.beta" } }, "api_key": [{ "current_key": "AIzaSyDummy" }] },
-              { "client_info": { "mobilesdk_app_id": "1:0:a:0", "android_client_info": { "package_name": "tw.nekomimi.nekogram" } }, "api_key": [{ "current_key": "AIzaSyDummy" }] }
+              { "client_info": { "mobilesdk_app_id": "1:0:a:0", "android_client_info": { "package_name": "tw.nekomimi.nekogram.beta.debug" } }, "api_key": [{ "current_key": "AIzaSyDummy" }] }
             ],
             "configuration_version": "1"
           }
