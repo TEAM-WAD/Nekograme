@@ -1,4 +1,4 @@
-name: Guaranteed Fast Build
+name: Fixed Fast Build
 
 on:
   push:
@@ -22,19 +22,19 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Fix Memory and Prebuilt Setup
+      - name: System & Environment Setup
         run: |
-          # 1. زيادة ذاكرة الـ Swap بالسيرفر لـ 8 جيجا
+          # 1. تفعيل Swap سريعة للسيرفر بقدرة 8GB
           sudo fallocate -l 8G /swapfile || true
           sudo chmod 600 /swapfile || true
           sudo mkswap /swapfile || true
           sudo swapon /swapfile || true
 
-          # 2. إجبار الذاكرة على مستوى الجهاز بدون لمس ملف المشروع الأصلي
+          # 2. ضبط ذاكرة JVM للنظام كلياً دون تعديل gradle.properties الخاص بالمشروع
           mkdir -p ~/.gradle
           echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m" > ~/.gradle/gradle.properties
 
-          # 3. إنشاء local.properties
+          # 3. إعداد local.properties
           cat << 'EOF' > local.properties
           apiId=6
           apiHash=eb066357ef23a52e23bf69c35832b100
@@ -45,7 +45,7 @@ jobs:
           abiList=arm64-v8a
           EOF
 
-          # 4. ملف Google وهمي احتياطي
+          # 4. ملف Google وهمي يدعم beta و release
           mkdir -p TMessagesProj_App
           cat << 'EOF' > TMessagesProj_App/google-services.json
           {
@@ -59,7 +59,7 @@ jobs:
           EOF
           touch sentry.properties
 
-          # 5. تنزيل مكتبات الـ SO الجاهزة وتفريغ C++
+          # 5. تنزيل مكتبات الـ SO وتجاوز بناء C++
           mkdir -p TMessagesProj_App/src/main/jniLibs/arm64-v8a
           curl -L -o release.apk https://github.com/Nekogram/Nekogram/releases/download/v11.6.0-10080/Nekogram-v11.6.0-10080-arm64-v8a.apk || true
           if [ -f "release.apk" ]; then
@@ -73,11 +73,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build APK
-        run: |
-          ./gradlew assembleDebug \
-            -PabiList=arm64-v8a \
-            -x processDebugGoogleServices \
-            --no-daemon
+        run: ./gradlew assembleDebug -PabiList=arm64-v8a --no-daemon
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
