@@ -1,4 +1,4 @@
-name: Guaranteed Fast Build
+name: Official Clean Arm64 Build
 
 on:
   push:
@@ -22,6 +22,11 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Setup Android NDK
+        uses: ndfirst/setup-ndk@v1
+        with:
+          ndk-version: r25b
+
       - name: System & Environment Setup
         run: |
           # 1. تفعيل Swap سريعة للسيرفر بقدرة 8GB
@@ -30,11 +35,11 @@ jobs:
           sudo mkswap /swapfile || true
           sudo swapon /swapfile || true
 
-          # 2. ضبط ذاكرة JVM للنظام كلياً
+          # 2. إعداد الذاكرة للنظام
           mkdir -p ~/.gradle
           echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m" > ~/.gradle/gradle.properties
 
-          # 3. إعداد local.properties
+          # 3. إعداد local.properties للبناء المخصص لمعمارية arm64-v8a
           cat << 'EOF' > local.properties
           apiId=6
           apiHash=eb066357ef23a52e23bf69c35832b100
@@ -45,7 +50,7 @@ jobs:
           abiList=arm64-v8a
           EOF
 
-          # 4. ملف Google وهمي يدعم beta و release
+          # 4. ملف Google وهمي يدعم جميع الحزم
           mkdir -p TMessagesProj_App
           cat << 'EOF' > TMessagesProj_App/google-services.json
           {
@@ -59,25 +64,15 @@ jobs:
           EOF
           touch sentry.properties
 
-          # 5. تنزيل مكتبات الـ SO وتجاوز بناء C++
-          mkdir -p TMessagesProj_App/src/main/jniLibs/arm64-v8a
-          curl -L -o release.apk https://github.com/Nekogram/Nekogram/releases/download/v11.6.0-10080/Nekogram-v11.6.0-10080-arm64-v8a.apk || true
-          if [ -f "release.apk" ]; then
-            unzip -o release.apk "lib/arm64-v8a/*" -d temp_so || true
-            cp -r temp_so/lib/arm64-v8a/* TMessagesProj_App/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
-          fi
-
-          find . -name "CMakeLists.txt" -exec sh -c 'echo "cmake_minimum_required(VERSION 3.10.2)" > "$1"; echo "project(dummy)" >> "$1"' _ {} \;
-
       - name: Grant Execute Permission
         run: chmod +x gradlew
 
-      - name: Build APK
+      - name: Build Official Arm64 Debug APK
         run: ./gradlew assembleDebug -PabiList=arm64-v8a --no-daemon
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Neko-App-Debug
+          name: Neko-Arm64-Debug
           path: TMessagesProj_App/build/outputs/apk/**/*.apk
