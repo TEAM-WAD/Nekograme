@@ -38,7 +38,7 @@ jobs:
           mkdir -p ~/.gradle
           echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m" > ~/.gradle/gradle.properties
 
-          # 3. إعداد local.properties بالمعلومات الحقيقية
+          # 3. إعداد local.properties
           cat << EOF > local.properties
           sdk.dir=/usr/local/lib/android/sdk
           ndk.dir=/usr/local/lib/android/sdk/ndk/27.3.13750724
@@ -53,7 +53,7 @@ jobs:
           abiList=arm64-v8a
           EOF
 
-          # 4. إنشاء مفتاح توقيع موحد للنسخة
+          # 4. إنشاء مفتاح توقيع موحد
           mkdir -p ~/.android
           keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
 
@@ -70,13 +70,20 @@ jobs:
           EOF
           touch sentry.properties
 
+      - name: Hardcode API Keys into BuildVars.java
+        run: |
+          # حفر الـ API ID والـ API HASH بشكل مباشر وجبري داخل ملفات الكود
+          find . -name "BuildVars.java" -exec sed -i 's/public static int APP_ID = .*/public static int APP_ID = 30357243;/g' {} +
+          find . -name "BuildVars.java" -exec sed -i 's/public static String APP_HASH = .*/public static String APP_HASH = "9782c26101c502f026721b8e7993786c";/g' {} +
+          find . -name "BuildVars.java" -exec sed -i 's/public static boolean DEBUG_VERSION = .*/public static boolean DEBUG_VERSION = false;/g' {} +
+
       - name: Grant Execute Permission
         run: chmod +x gradlew
 
-      - name: Build Official Release APK
-        run: ./gradlew :TMessagesProj_App:assembleRelease -PabiList=arm64-v8a --no-daemon
+      - name: Build Arm64 APK
+        run: ./gradlew :TMessagesProj_App:assembleDebug -PabiList=arm64-v8a --no-daemon
 
-      - name: Sign Release APK
+      - name: Sign APK
         run: |
           BUILD_TOOLS_VER=$(ls $ANDROID_HOME/build-tools | tail -n 1)
           APK_PATH=$(find TMessagesProj_App/build/outputs/apk/ -name "*.apk" | head -n 1)
@@ -84,7 +91,7 @@ jobs:
             $ANDROID_HOME/build-tools/$BUILD_TOOLS_VER/apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android "$APK_PATH" || true
           fi
 
-      - name: Upload Working Release APK
+      - name: Upload Working APK
         uses: actions/upload-artifact@v4
         if: always()
         with:
