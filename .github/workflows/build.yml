@@ -22,14 +22,9 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Setup Android NDK
-        uses: ndfirst/setup-ndk@v1
-        with:
-          ndk-version: r25b
-
       - name: System & Environment Setup
         run: |
-          # 1. تفعيل Swap سريعة للسيرفر بقدرة 8GB
+          # 1. تفعيل Swap بقدرة 8GB
           sudo fallocate -l 8G /swapfile || true
           sudo chmod 600 /swapfile || true
           sudo mkswap /swapfile || true
@@ -39,8 +34,10 @@ jobs:
           mkdir -p ~/.gradle
           echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m" > ~/.gradle/gradle.properties
 
-          # 3. إعداد local.properties للبناء المخصص لمعمارية arm64-v8a
-          cat << 'EOF' > local.properties
+          # 3. إعداد local.properties واستخدام الـ NDK المثبت في السيرفر
+          cat << EOF > local.properties
+          sdk.dir=/usr/local/lib/android/sdk
+          ndk.dir=$ANDROID_NDK_LATEST_HOME
           apiId=6
           apiHash=eb066357ef23a52e23bf69c35832b100
           helperBotId=0
